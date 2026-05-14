@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   NORVA — Global Styles
+   ============================================================================ */
+
+@layer base {
+  :root {
+    /* Brand */
+    --brand-navy: #0d1b2a;
+    --brand-navy-light: #162236;
+    --brand-teal: #00c2a8;
+    --brand-teal-dark: #00a08a;
+    --brand-off-white: #f5f4f0;
+
+    /* Surfaces */
+    --surface-primary: #ffffff;
+    --surface-secondary: #f8f8f7;
+    --surface-tertiary: #f0efe9;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply antialiased;
+  }
+
+  /* Remove default focus styles, replaced by ring utilities */
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    @apply ring-2 ring-brand-navy ring-offset-2;
+  }
+}
+
+@layer components {
+  /* Alert card urgency left-border variants */
+  .alert-card-critical {
+    @apply border-l-4 border-l-red-500;
+  }
+  .alert-card-high {
+    @apply border-l-4 border-l-amber-500;
+  }
+  .alert-card-medium {
+    @apply border-l-4 border-l-blue-400;
+  }
+  .alert-card-low {
+    @apply border-l-4 border-l-gray-300;
+  }
+  .alert-card-resolved {
+    @apply border-l-4 border-l-green-400 opacity-60;
+  }
+
+  /* Operations feed item base */
+  .feed-item {
+    @apply rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-card;
+  }
+
+  /* Metric stat display */
+  .stat-value {
+    @apply text-2xl font-semibold tabular-nums text-gray-900;
+  }
+
+  .stat-label {
+    @apply text-2xs font-medium uppercase tracking-wide text-gray-500;
+  }
+}
+
+@layer utilities {
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #e5e7eb transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #e5e7eb;
+    border-radius: 2px;
+  }
+
+  /* Monospace tabular numbers for data display */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
