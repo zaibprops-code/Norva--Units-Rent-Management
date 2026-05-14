@@ -1,6 +1,7 @@
 // =============================================================================
 // DATE UTILITIES
 // Consistent date formatting and calculation across the app.
+// Client-safe: no server imports.
 // =============================================================================
 import {
   format,
@@ -9,9 +10,6 @@ import {
   parseISO,
   isToday,
   isYesterday,
-  addDays,
-  startOfMonth,
-  endOfMonth,
 } from "date-fns";
 
 /**
@@ -23,7 +21,8 @@ export function formatDate(date: string | Date): string {
 }
 
 /**
- * Format a date as relative time (e.g., "2 hours ago", "3 days ago")
+ * Format a date as relative time with special-casing for today/yesterday.
+ * (e.g., "Today", "Yesterday", "3 days ago")
  */
 export function formatRelative(date: string | Date): string {
   const d = typeof date === "string" ? parseISO(date) : date;
@@ -33,7 +32,8 @@ export function formatRelative(date: string | Date): string {
 }
 
 /**
- * Format a date for display in alerts (e.g., "Today", "Yesterday", "Jan 15")
+ * Format a date for alert display with time component.
+ * (e.g., "Today at 9:22 AM", "Yesterday at 3:14 AM", "Jan 15 at 7:00 AM")
  */
 export function formatAlertDate(date: string | Date): string {
   const d = typeof date === "string" ? parseISO(date) : date;
@@ -43,46 +43,37 @@ export function formatAlertDate(date: string | Date): string {
 }
 
 /**
- * Calculate days between two dates (positive = date2 is in the future)
+ * Days between two dates. Positive = date2 is in the future.
  */
-export function daysBetween(date1: string | Date, date2: string | Date): number {
+export function daysBetween(
+  date1: string | Date,
+  date2: string | Date
+): number {
   const d1 = typeof date1 === "string" ? parseISO(date1) : date1;
   const d2 = typeof date2 === "string" ? parseISO(date2) : date2;
   return differenceInDays(d2, d1);
 }
 
 /**
- * Get days until a future date (negative = already past)
+ * Days until a future date. Negative = already past.
  */
 export function daysUntil(futureDate: string | Date): number {
   return daysBetween(new Date(), futureDate);
 }
 
 /**
- * Get days since a past date
+ * Days since a past date.
  */
 export function daysSince(pastDate: string | Date): number {
   return daysBetween(pastDate, new Date());
 }
 
 /**
- * Get rent due date for current month given a day-of-month
+ * Get the rent due date for the current month given a day-of-month number.
  */
 export function getRentDueDate(dueDayOfMonth: number): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), dueDayOfMonth);
-}
-
-/**
- * Format a currency amount (USD)
- */
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 /**
@@ -91,3 +82,7 @@ export function formatCurrency(amount: number): string {
 export function formatLeaseRange(start: string, end: string): string {
   return `${formatDate(start)} – ${formatDate(end)}`;
 }
+
+// NOTE: formatCurrency lives in formatting.ts — do not duplicate here.
+// The barrel (utils/index.ts) re-exports both files so formatCurrency
+// is available from "@/lib/utils" without conflict.
