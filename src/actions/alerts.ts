@@ -4,17 +4,19 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 
+// ---------------------------------------------------------------------------
+// Private helper — explicit return type bypasses SDK column-inference issues.
+// The cast to { id: string } | null makes org.id access unconditionally safe
+// regardless of what TypeScript infers from the .select("id").single() chain.
+// ---------------------------------------------------------------------------
 async function getOrgId(userId: string): Promise<string | null> {
   const supabase = await createClient();
-
-  const organizationsTable = supabase.from("organizations") as any;
-
-  const { data } = await organizationsTable
+  const { data } = await supabase
+    .from("organizations")
     .select("id")
     .eq("owner_id", userId)
     .single();
-
-  return data?.id ?? null;
+  return (data as { id: string } | null)?.id ?? null;
 }
 
 export async function resolveAlertAction(
@@ -26,20 +28,13 @@ export async function resolveAlertAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: "Not authenticated" };
-  }
+  if (!user) return { success: false, error: "Not authenticated" };
 
   const orgId = await getOrgId(user.id);
+  if (!orgId) return { success: false, error: "Organization not found" };
 
-  if (!orgId) {
-    return { success: false, error: "Organization not found" };
-  }
-
-  const alertsTable = supabase.from("alerts") as any;
-
-  const { error } = await alertsTable
+  const { error } = await supabase
+    .from("alerts")
     .update({
       status: "resolved",
       resolved_at: new Date().toISOString(),
@@ -49,25 +44,18 @@ export async function resolveAlertAction(
     .eq("id", alertId)
     .eq("org_id", orgId);
 
-  if (error) {
-    return { success: false, error: error.message };
-  }
+  if (error) return { success: false, error: error.message };
 
-  const activityLogTable = supabase.from("activity_log") as any;
-
-  await activityLogTable.insert({
+  await supabase.from("activity_log").insert({
     org_id: orgId,
     entity_type: "alert",
     entity_id: alertId,
     action: "resolved",
     actor: user.id,
-    metadata: {
-      resolution_note: resolutionNote,
-    },
+    metadata: { resolution_note: resolutionNote },
   });
 
   revalidatePath("/dashboard");
-
   return { success: true };
 }
 
@@ -79,33 +67,20 @@ export async function dismissAlertAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: "Not authenticated" };
-  }
+  if (!user) return { success: false, error: "Not authenticated" };
 
   const orgId = await getOrgId(user.id);
+  if (!orgId) return { success: false, error: "Organization not found" };
 
-  if (!orgId) {
-    return { success: false, error: "Organization not found" };
-  }
-
-  const alertsTable = supabase.from("alerts") as any;
-
-  const { error } = await alertsTable
-    .update({
-      status: "dismissed",
-    })
+  const { error } = await supabase
+    .from("alerts")
+    .update({ status: "dismissed" })
     .eq("id", alertId)
     .eq("org_id", orgId);
 
-  if (error) {
-    return { success: false, error: error.message };
-  }
+  if (error) return { success: false, error: error.message };
 
-  const activityLogTable = supabase.from("activity_log") as any;
-
-  await activityLogTable.insert({
+  await supabase.from("activity_log").insert({
     org_id: orgId,
     entity_type: "alert",
     entity_id: alertId,
@@ -115,6 +90,5 @@ export async function dismissAlertAction(
   });
 
   revalidatePath("/dashboard");
-
   return { success: true };
 }
