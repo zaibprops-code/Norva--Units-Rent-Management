@@ -6,12 +6,14 @@ import { createClient } from "@/lib/supabase/server";
 
 async function getOrgId(userId: string): Promise<string | null> {
   const supabase = await createClient();
+
   const { data } = await supabase
     .from("organizations")
     .select("id")
     .eq("owner_id", userId)
     .single();
-  return data?.id ?? null;
+
+  return (data as { id: string } | null)?.id ?? null;
 }
 
 export async function resolveAlertAction(
@@ -19,13 +21,20 @@ export async function resolveAlertAction(
   resolutionNote = "Resolved by landlord"
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
 
   const orgId = await getOrgId(user.id);
-  if (!orgId) return { success: false, error: "Organization not found" };
+
+  if (!orgId) {
+    return { success: false, error: "Organization not found" };
+  }
 
   const { error } = await supabase
     .from("alerts")
@@ -38,7 +47,9 @@ export async function resolveAlertAction(
     .eq("id", alertId)
     .eq("org_id", orgId);
 
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    return { success: false, error: error.message };
+  }
 
   await supabase.from("activity_log").insert({
     org_id: orgId,
@@ -46,10 +57,13 @@ export async function resolveAlertAction(
     entity_id: alertId,
     action: "resolved",
     actor: user.id,
-    metadata: { resolution_note: resolutionNote },
+    metadata: {
+      resolution_note: resolutionNote,
+    },
   });
 
   revalidatePath("/dashboard");
+
   return { success: true };
 }
 
@@ -57,21 +71,32 @@ export async function dismissAlertAction(
   alertId: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
 
   const orgId = await getOrgId(user.id);
-  if (!orgId) return { success: false, error: "Organization not found" };
+
+  if (!orgId) {
+    return { success: false, error: "Organization not found" };
+  }
 
   const { error } = await supabase
     .from("alerts")
-    .update({ status: "dismissed" })
+    .update({
+      status: "dismissed",
+    })
     .eq("id", alertId)
     .eq("org_id", orgId);
 
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    return { success: false, error: error.message };
+  }
 
   await supabase.from("activity_log").insert({
     org_id: orgId,
@@ -83,5 +108,6 @@ export async function dismissAlertAction(
   });
 
   revalidatePath("/dashboard");
+
   return { success: true };
 }
