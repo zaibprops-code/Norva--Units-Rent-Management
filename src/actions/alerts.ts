@@ -7,13 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 async function getOrgId(userId: string): Promise<string | null> {
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("organizations")
+  const organizationsTable = supabase.from("organizations") as any;
+
+  const { data } = await organizationsTable
     .select("id")
     .eq("owner_id", userId)
     .single();
 
-  return (data as { id: string } | null)?.id ?? null;
+  return data?.id ?? null;
 }
 
 export async function resolveAlertAction(
@@ -36,16 +37,15 @@ export async function resolveAlertAction(
     return { success: false, error: "Organization not found" };
   }
 
-  const { error } = await supabase
-    .from("alerts")
-    .update(
-      {
-        status: "resolved",
-        resolved_at: new Date().toISOString(),
-        resolved_by: user.id,
-        resolution_note: resolutionNote,
-      } as any
-    )
+  const alertsTable = supabase.from("alerts") as any;
+
+  const { error } = await alertsTable
+    .update({
+      status: "resolved",
+      resolved_at: new Date().toISOString(),
+      resolved_by: user.id,
+      resolution_note: resolutionNote,
+    })
     .eq("id", alertId)
     .eq("org_id", orgId);
 
@@ -53,18 +53,18 @@ export async function resolveAlertAction(
     return { success: false, error: error.message };
   }
 
-  await supabase.from("activity_log").insert(
-    {
-      org_id: orgId,
-      entity_type: "alert",
-      entity_id: alertId,
-      action: "resolved",
-      actor: user.id,
-      metadata: {
-        resolution_note: resolutionNote,
-      },
-    } as any
-  );
+  const activityLogTable = supabase.from("activity_log") as any;
+
+  await activityLogTable.insert({
+    org_id: orgId,
+    entity_type: "alert",
+    entity_id: alertId,
+    action: "resolved",
+    actor: user.id,
+    metadata: {
+      resolution_note: resolutionNote,
+    },
+  });
 
   revalidatePath("/dashboard");
 
@@ -90,13 +90,12 @@ export async function dismissAlertAction(
     return { success: false, error: "Organization not found" };
   }
 
-  const { error } = await supabase
-    .from("alerts")
-    .update(
-      {
-        status: "dismissed",
-      } as any
-    )
+  const alertsTable = supabase.from("alerts") as any;
+
+  const { error } = await alertsTable
+    .update({
+      status: "dismissed",
+    })
     .eq("id", alertId)
     .eq("org_id", orgId);
 
@@ -104,16 +103,16 @@ export async function dismissAlertAction(
     return { success: false, error: error.message };
   }
 
-  await supabase.from("activity_log").insert(
-    {
-      org_id: orgId,
-      entity_type: "alert",
-      entity_id: alertId,
-      action: "dismissed",
-      actor: user.id,
-      metadata: {},
-    } as any
-  );
+  const activityLogTable = supabase.from("activity_log") as any;
+
+  await activityLogTable.insert({
+    org_id: orgId,
+    entity_type: "alert",
+    entity_id: alertId,
+    action: "dismissed",
+    actor: user.id,
+    metadata: {},
+  });
 
   revalidatePath("/dashboard");
 
