@@ -1,6 +1,7 @@
 // =============================================================================
 // APPLICATION TYPES
 // Domain types, API response shapes, and UI state types.
+// Database row/insert/update types live in ./database.ts and are re-exported here.
 // =============================================================================
 
 export type * from "./database";
@@ -31,7 +32,7 @@ export interface Plan {
 }
 
 // -----------------------------------------------------------------------------
-// Alert types (extended with relations)
+// Alert display types
 // -----------------------------------------------------------------------------
 export type AlertType =
   | "overdue_rent"
@@ -43,16 +44,12 @@ export type AlertType =
 
 export type AlertStatus = "active" | "resolved" | "dismissed" | "snoozed";
 
+// UrgencyLevel is a pure type — the getUrgencyLevel() function that
+// maps a numeric score to this type lives in @/lib/utils/urgency.ts.
+// Do NOT duplicate the function here.
 export type UrgencyLevel = "critical" | "high" | "medium" | "low";
 
-export function getUrgencyLevel(score: number): UrgencyLevel {
-  if (score >= 80) return "critical";
-  if (score >= 60) return "high";
-  if (score >= 35) return "medium";
-  return "low";
-}
-
-// Alert with joined relations for display
+// Alert with joined relations for display in the operations feed
 export interface AlertWithRelations {
   id: string;
   type: AlertType;
@@ -83,7 +80,7 @@ export interface AlertWithRelations {
 }
 
 // -----------------------------------------------------------------------------
-// API response types
+// API response envelope types
 // -----------------------------------------------------------------------------
 export interface ApiSuccess<T> {
   data: T;
@@ -101,7 +98,7 @@ export interface ApiError {
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
 // -----------------------------------------------------------------------------
-// Portfolio stats (for dashboard)
+// Portfolio stats (used by dashboard Server Component + PortfolioStats component)
 // -----------------------------------------------------------------------------
 export interface PortfolioStats {
   totalUnits: number;
@@ -116,7 +113,7 @@ export interface PortfolioStats {
 }
 
 // -----------------------------------------------------------------------------
-// Notification preferences
+// Notification preferences (for settings page)
 // -----------------------------------------------------------------------------
 export interface NotificationPreferences {
   emailAlerts: boolean;
@@ -126,7 +123,7 @@ export interface NotificationPreferences {
 }
 
 // -----------------------------------------------------------------------------
-// Urgency scoring input
+// Urgency scoring input (consumed by @/lib/utils/urgency.ts)
 // -----------------------------------------------------------------------------
 export interface RentUrgencyInput {
   daysOverdue: number;
