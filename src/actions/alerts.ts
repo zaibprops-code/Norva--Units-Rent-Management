@@ -38,12 +38,14 @@ export async function resolveAlertAction(
 
   const { error } = await supabase
     .from("alerts")
-    .update({
-      status: "resolved",
-      resolved_at: new Date().toISOString(),
-      resolved_by: user.id,
-      resolution_note: resolutionNote,
-    })
+    .update(
+      {
+        status: "resolved",
+        resolved_at: new Date().toISOString(),
+        resolved_by: user.id,
+        resolution_note: resolutionNote,
+      } as any
+    )
     .eq("id", alertId)
     .eq("org_id", orgId);
 
@@ -51,16 +53,18 @@ export async function resolveAlertAction(
     return { success: false, error: error.message };
   }
 
-  await supabase.from("activity_log").insert({
-    org_id: orgId,
-    entity_type: "alert",
-    entity_id: alertId,
-    action: "resolved",
-    actor: user.id,
-    metadata: {
-      resolution_note: resolutionNote,
-    },
-  });
+  await supabase.from("activity_log").insert(
+    {
+      org_id: orgId,
+      entity_type: "alert",
+      entity_id: alertId,
+      action: "resolved",
+      actor: user.id,
+      metadata: {
+        resolution_note: resolutionNote,
+      },
+    } as any
+  );
 
   revalidatePath("/dashboard");
 
@@ -88,9 +92,11 @@ export async function dismissAlertAction(
 
   const { error } = await supabase
     .from("alerts")
-    .update({
-      status: "dismissed",
-    })
+    .update(
+      {
+        status: "dismissed",
+      } as any
+    )
     .eq("id", alertId)
     .eq("org_id", orgId);
 
@@ -98,14 +104,16 @@ export async function dismissAlertAction(
     return { success: false, error: error.message };
   }
 
-  await supabase.from("activity_log").insert({
-    org_id: orgId,
-    entity_type: "alert",
-    entity_id: alertId,
-    action: "dismissed",
-    actor: user.id,
-    metadata: {},
-  });
+  await supabase.from("activity_log").insert(
+    {
+      org_id: orgId,
+      entity_type: "alert",
+      entity_id: alertId,
+      action: "dismissed",
+      actor: user.id,
+      metadata: {},
+    } as any
+  );
 
   revalidatePath("/dashboard");
 
