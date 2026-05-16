@@ -730,7 +730,7 @@ export type Database = {
           metadata?: Json;
           created_at?: string;
         };
-        Update: never;
+        Update: Record<string, never>;
         Relationships: [
           {
             foreignKeyName: "activity_log_org_id_fkey";
