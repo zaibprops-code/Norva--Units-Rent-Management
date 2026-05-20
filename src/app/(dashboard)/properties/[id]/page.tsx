@@ -1,17 +1,14 @@
-// =============================================================================
-// PROPERTY DETAIL PAGE
-// =============================================================================
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/utils/server-helpers";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeadCell, TableRow } from "@/components/ui";
 import { formatAddress, formatCurrency } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Property" };
-
 interface Props { params: Promise<{ id: string }> }
 
 export default async function PropertyDetailPage({ params }: Props) {
@@ -20,16 +17,15 @@ export default async function PropertyDetailPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: org } = await supabase.from("organizations").select("id").eq("owner_id", user.id).single();
-  if (!org) redirect("/login");
+  const orgId = await getOrgId(user.id);
+  if (!orgId) redirect("/login");
 
   const { data: property } = await supabase
     .from("properties")
     .select("*")
     .eq("id", id)
-    .eq("org_id", org.id)
+    .eq("org_id", orgId)
     .single();
-
   if (!property) notFound();
 
   const { data: units } = await supabase
@@ -48,7 +44,6 @@ export default async function PropertyDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <Link href="/dashboard/properties" className="mb-2 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
           <ArrowLeft size={14} /> Properties
@@ -64,14 +59,11 @@ export default async function PropertyDetailPage({ params }: Props) {
             <Badge variant={property.health_score >= 80 ? "green" : property.health_score >= 60 ? "amber" : "red"}>
               Health {property.health_score}
             </Badge>
-            <Button variant="primary" size="sm">
-              <Plus size={14} /> Add unit
-            </Button>
+            <Button variant="primary" size="sm"><Plus size={14} /> Add unit</Button>
           </div>
         </div>
       </div>
 
-      {/* Active alerts */}
       {activeAlerts && activeAlerts.length > 0 && (
         <div className="card p-4">
           <h2 className="mb-3 text-sm font-semibold text-gray-900">Active alerts</h2>
@@ -88,7 +80,6 @@ export default async function PropertyDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Units table */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-gray-900">Units ({units?.length ?? 0})</h2>
         <Table>
@@ -116,9 +107,7 @@ export default async function PropertyDetailPage({ params }: Props) {
                       <Link href={`/dashboard/tenants/${tenant.id}`} className="text-teal-700 hover:underline">
                         {tenant.first_name} {tenant.last_name}
                       </Link>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
+                    ) : <span className="text-gray-400">—</span>}
                   </TableCell>
                   <TableCell>
                     {lease ? formatCurrency(lease.rent_amount) : <span className="text-gray-400">—</span>}
@@ -128,9 +117,7 @@ export default async function PropertyDetailPage({ params }: Props) {
                       <Badge variant={tenant.trs_score >= 80 ? "green" : tenant.trs_score >= 60 ? "blue" : "amber"}>
                         {tenant.trs_score}
                       </Badge>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
+                    ) : <span className="text-gray-400">—</span>}
                   </TableCell>
                 </TableRow>
               );
