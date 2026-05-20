@@ -1,12 +1,10 @@
-// =============================================================================
-// PROPERTIES LIST PAGE
-// =============================================================================
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus, Building2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/utils/server-helpers";
 import { Button, EmptyState, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, Badge } from "@/components/ui";
 import { formatAddress } from "@/lib/utils";
 import { ROUTES } from "@/constants";
@@ -18,22 +16,17 @@ export default async function PropertiesPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-  if (!org) redirect("/login");
+  const orgId = await getOrgId(user.id);
+  if (!orgId) redirect("/login");
 
   const { data: properties } = await supabase
     .from("properties")
     .select("*, units(id, status)")
-    .eq("org_id", org.id)
+    .eq("org_id", orgId)
     .order("name");
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">Properties</h1>
@@ -42,23 +35,16 @@ export default async function PropertiesPage() {
           </p>
         </div>
         <Link href={ROUTES.PROPERTY_NEW}>
-          <Button variant="primary" size="sm">
-            <Plus size={14} />
-            Add property
-          </Button>
+          <Button variant="primary" size="sm"><Plus size={14} />Add property</Button>
         </Link>
       </div>
 
-      {/* Table or empty */}
       {!properties?.length ? (
         <EmptyState
           icon={<Building2 size={22} />}
           title="No properties yet"
           description="Add your first property to start monitoring your portfolio."
-          action={{
-            label: "Add property",
-            onClick: () => {},
-          }}
+          action={{ label: "Add property", onClick: () => {} }}
         />
       ) : (
         <Table>
@@ -76,15 +62,9 @@ export default async function PropertiesPage() {
               const total = units.length;
               const pct = total > 0 ? Math.round((occupied / total) * 100) : 0;
               return (
-                <TableRow
-                  key={property.id}
-                  onClick={() => {}}
-                >
+                <TableRow key={property.id} onClick={() => {}}>
                   <TableCell>
-                    <Link
-                      href={`/dashboard/properties/${property.id}`}
-                      className="font-medium text-gray-900 hover:text-teal-700"
-                    >
+                    <Link href={`/dashboard/properties/${property.id}`} className="font-medium text-gray-900 hover:text-teal-700">
                       {property.name}
                     </Link>
                   </TableCell>
@@ -99,9 +79,7 @@ export default async function PropertiesPage() {
                     <span className="ml-1 text-xs text-gray-400">({occupied}/{total})</span>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={property.health_score >= 80 ? "green" : property.health_score >= 60 ? "amber" : "red"}
-                    >
+                    <Badge variant={property.health_score >= 80 ? "green" : property.health_score >= 60 ? "amber" : "red"}>
                       {property.health_score}
                     </Badge>
                   </TableCell>
