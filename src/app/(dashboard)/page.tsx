@@ -1,67 +1,47 @@
-// =============================================================================
-// DASHBOARD HOME — Operations Feed
-// The main view. Server component loads initial data.
-// Client component subscribes to realtime updates.
-// =============================================================================
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { OperationsFeed } from "@/components/dashboard/OperationsFeed";
 import { PortfolioStats } from "@/components/dashboard/PortfolioStats";
 import { createClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/utils/server-helpers";
 
-export const metadata: Metadata = {
-  title: "Operations Feed",
-};
+export const metadata: Metadata = { title: "Operations Feed" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Get org
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("id, name, plan")
-    .eq("owner_id", user.id)
-    .single();
+  const orgId = await getOrgId(user.id);
+  if (!orgId) redirect("/login");
 
-  if (!org) redirect("/login");
-
-  // Load active alerts (urgency DESC — most urgent first)
+  // Active alerts — most urgent first
   const { data: alerts } = await supabase
     .from("alerts")
-    .select(
-      `
+    .select(`
       *,
       properties:property_id (id, name),
       units:unit_id (id, unit_number),
       tenants:tenant_id (id, first_name, last_name, email, phone, trs_score)
-    `
-    )
-    .eq("org_id", org.id)
+    `)
+    .eq("org_id", orgId)
     .eq("status", "active")
     .order("urgency", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(50);
 
-  // Load recently resolved alerts (last 24h)
+  // Resolved in last 24h
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data: resolvedAlerts } = await supabase
     .from("alerts")
-    .select(
-      `
+    .select(`
       *,
       properties:property_id (id, name),
       units:unit_id (id, unit_number),
       tenants:tenant_id (id, first_name, last_name, email, phone, trs_score)
-    `
-    )
-    .eq("org_id", org.id)
+    `)
+    .eq("org_id", orgId)
     .eq("status", "resolved")
     .gte("resolved_at", yesterday)
     .order("resolved_at", { ascending: false })
@@ -71,12 +51,12 @@ export default async function DashboardPage() {
   const { data: units } = await supabase
     .from("units")
     .select("id, status")
-    .eq("org_id", org.id);
+    .eq("org_id", orgId);
 
   const { data: openTickets } = await supabase
     .from("maintenance_tickets")
     .select("id, urgency")
-    .eq("org_id", org.id)
+    .eq("org_id", orgId)
     .in("status", ["open", "acknowledged", "assigned", "in_progress"]);
 
   const totalUnits = units?.length ?? 0;
@@ -93,20 +73,14 @@ export default async function DashboardPage() {
     criticalAlerts,
     overdueCount: alerts?.filter((a) => a.type === "overdue_rent").length ?? 0,
     openMaintenanceCount: openTickets?.length ?? 0,
-    healthScore: Math.max(
-      0,
-      100 - criticalAlerts * 15 - activeAlerts * 3
-    ),
+    healthScore: Math.max(0, 100 - criticalAlerts * 15 - activeAlerts * 3),
   };
 
   return (
     <div className="space-y-6">
-      {/* Portfolio stats bar */}
       <PortfolioStats stats={stats} />
-
-      {/* Operations feed */}
       <OperationsFeed
-        orgId={org.id}
+        orgId={orgId}
         initialAlerts={alerts ?? []}
         resolvedAlerts={resolvedAlerts ?? []}
       />
