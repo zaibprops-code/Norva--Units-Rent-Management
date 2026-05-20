@@ -1,12 +1,10 @@
-// =============================================================================
-// SETTINGS PAGE
-// =============================================================================
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CreditCard, Bell, ChevronRight } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrg } from "@/lib/utils/server-helpers";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -15,7 +13,7 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: org } = await supabase.from("organizations").select("*").eq("owner_id", user.id).single();
+  const org = await getOrg(user.id);
   if (!org) redirect("/login");
 
   const settingsLinks = [
@@ -42,11 +40,7 @@ export default async function SettingsPage() {
 
       <div className="card divide-y divide-gray-100 overflow-hidden">
         {settingsLinks.map(({ href, icon: Icon, label, description }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50"
-          >
+          <Link key={href} href={href} className="flex items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100">
                 <Icon size={16} className="text-gray-600" />
@@ -61,7 +55,6 @@ export default async function SettingsPage() {
         ))}
       </div>
 
-      {/* Account info */}
       <div className="card p-4">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Account</h2>
         <div className="space-y-2 text-sm">
