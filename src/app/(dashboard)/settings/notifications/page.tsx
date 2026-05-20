@@ -1,12 +1,10 @@
-// =============================================================================
-// NOTIFICATIONS SETTINGS PAGE
-// =============================================================================
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrg } from "@/lib/utils/server-helpers";
 import { NotificationSettingsForm } from "@/components/settings/NotificationSettingsForm";
 
 export const metadata: Metadata = { title: "Notifications" };
@@ -16,7 +14,7 @@ export default async function NotificationsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: org } = await supabase.from("organizations").select("*").eq("owner_id", user.id).single();
+  const org = await getOrg(user.id);
   if (!org) redirect("/login");
 
   return (
