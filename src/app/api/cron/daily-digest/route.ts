@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Resend } from "resend";
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { EMAIL } from "@/constants";
 
 export const maxDuration = 60;
@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
 
   let sent = 0;
 
-  for (const org of orgs ?? []) {
+  type OrgRow = { id: string; name: string; notification_email: string | null; owner_id: string };
+  for (const org of (orgs ?? []) as OrgRow[]) {
     try {
       const recipientEmail = org.notification_email;
       if (!recipientEmail) continue;
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Log digest sent
-      await supabase.from("digest_log").insert({
+      await supabase.from("digest_log").insert(({
         org_id: org.id,
         actions_taken: resolvedToday?.length ?? 0,
         pending_decisions: pendingDecisions,
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
           resolved_count: resolvedToday?.length ?? 0,
           maintenance_count: openMaintenance?.length ?? 0,
         },
-      });
+      }) as never);
 
       sent++;
     } catch (err) {
