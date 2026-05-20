@@ -1,12 +1,10 @@
-// =============================================================================
-// TENANT DETAIL PAGE
-// =============================================================================
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Mail, Phone } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/utils/server-helpers";
 import { Avatar, Badge } from "@/components/ui";
 import { formatTenantName, formatCurrency, formatDate, getTRSColor, formatTRSLabel, formatRelative } from "@/lib/utils";
 
@@ -19,13 +17,15 @@ export default async function TenantDetailPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: org } = await supabase.from("organizations").select("id").eq("owner_id", user.id).single();
-  if (!org) redirect("/login");
+  const orgId = await getOrgId(user.id);
+  if (!orgId) redirect("/login");
 
   const { data: tenant } = await supabase
     .from("tenants")
     .select("*, units(unit_number, properties(name))")
-    .eq("id", id).eq("org_id", org.id).single();
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .single();
   if (!tenant) notFound();
 
   const { data: leases } = await supabase
@@ -51,14 +51,15 @@ export default async function TenantDetailPage({ params }: Props) {
   const activeLease = leases?.find((l) => l.status === "active");
   const unit = Array.isArray(tenant.units) ? tenant.units[0] : tenant.units;
   const property = unit?.properties && (Array.isArray(unit.properties) ? unit.properties[0] : unit.properties);
-
   const trsColor = getTRSColor(tenant.trs_score);
-  const onTimePayments = payments?.filter((p) => p.status === "paid" && (!p.paid_date || new Date(p.paid_date) <= new Date(new Date(p.due_date).getTime() + 5 * 86400000))).length ?? 0;
+  const onTimePayments = payments?.filter((p) =>
+    p.status === "paid" && p.paid_date &&
+    new Date(p.paid_date) <= new Date(new Date(p.due_date).getTime() + 5 * 86400000)
+  ).length ?? 0;
   const totalPayments = payments?.length ?? 0;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <Link href="/dashboard/tenants" className="mb-2 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
           <ArrowLeft size={14} /> Tenants
@@ -92,7 +93,6 @@ export default async function TenantDetailPage({ params }: Props) {
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Stats */}
         <div className="space-y-3">
           <div className="card p-4">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Lease</h2>
@@ -114,7 +114,6 @@ export default async function TenantDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Payments */}
         <div className="card p-4 lg:col-span-2">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent payments</h2>
           {payments?.length ? (
@@ -140,7 +139,6 @@ export default async function TenantDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Communication timeline */}
       <div className="card p-4">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Communication timeline</h2>
         {communications?.length ? (
