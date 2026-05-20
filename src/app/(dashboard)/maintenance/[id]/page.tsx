@@ -1,12 +1,10 @@
-// =============================================================================
-// MAINTENANCE TICKET DETAIL PAGE
-// =============================================================================
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/utils/server-helpers";
 import { Badge } from "@/components/ui";
 import { formatDate, formatRelative, formatTenantName } from "@/lib/utils";
 
@@ -23,13 +21,15 @@ export default async function MaintenanceDetailPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: org } = await supabase.from("organizations").select("id").eq("owner_id", user.id).single();
-  if (!org) redirect("/login");
+  const orgId = await getOrgId(user.id);
+  if (!orgId) redirect("/login");
 
   const { data: ticket } = await supabase
     .from("maintenance_tickets")
     .select("*, properties(name, address), units(unit_number), tenants(id, first_name, last_name, email, phone)")
-    .eq("id", id).eq("org_id", org.id).single();
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .single();
   if (!ticket) notFound();
 
   const property = Array.isArray(ticket.properties) ? ticket.properties[0] : ticket.properties;
