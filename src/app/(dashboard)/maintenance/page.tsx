@@ -1,31 +1,22 @@
-// =============================================================================
-// MAINTENANCE LIST PAGE
-// =============================================================================
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus, Wrench } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/utils/server-helpers";
 import { Badge, Button, EmptyState, Table, TableBody, TableCell, TableHead, TableHeadCell, TableRow } from "@/components/ui";
 import { formatRelative } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Maintenance" };
 
 const STATUS_VARIANT: Record<string, "gray" | "amber" | "blue" | "green" | "red"> = {
-  open: "red",
-  acknowledged: "amber",
-  assigned: "blue",
-  in_progress: "blue",
-  resolved: "green",
-  closed: "gray",
+  open: "red", acknowledged: "amber", assigned: "blue",
+  in_progress: "blue", resolved: "green", closed: "gray",
 };
 
 const URGENCY_VARIANT: Record<string, "red" | "amber" | "blue" | "gray"> = {
-  emergency: "red",
-  urgent: "amber",
-  standard: "blue",
-  low: "gray",
+  emergency: "red", urgent: "amber", standard: "blue", low: "gray",
 };
 
 export default async function MaintenancePage() {
@@ -33,13 +24,13 @@ export default async function MaintenancePage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: org } = await supabase.from("organizations").select("id").eq("owner_id", user.id).single();
-  if (!org) redirect("/login");
+  const orgId = await getOrgId(user.id);
+  if (!orgId) redirect("/login");
 
   const { data: tickets } = await supabase
     .from("maintenance_tickets")
     .select("*, properties(name), units(unit_number), tenants(first_name, last_name)")
-    .eq("org_id", org.id)
+    .eq("org_id", orgId)
     .order("urgency_score", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -91,12 +82,8 @@ export default async function MaintenancePage() {
                           {property && <p className="text-xs text-gray-400">{property.name}</p>}
                         </TableCell>
                         <TableCell className="text-gray-500">{unit?.unit_number ?? "—"}</TableCell>
-                        <TableCell>
-                          <Badge variant={URGENCY_VARIANT[ticket.urgency] ?? "gray"}>{ticket.urgency}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_VARIANT[ticket.status] ?? "gray"}>{ticket.status.replace("_", " ")}</Badge>
-                        </TableCell>
+                        <TableCell><Badge variant={URGENCY_VARIANT[ticket.urgency] ?? "gray"}>{ticket.urgency}</Badge></TableCell>
+                        <TableCell><Badge variant={STATUS_VARIANT[ticket.status] ?? "gray"}>{ticket.status.replace("_", " ")}</Badge></TableCell>
                         <TableCell className="text-gray-500 text-xs">{formatRelative(ticket.created_at)}</TableCell>
                         <TableCell className="text-gray-500">{ticket.assigned_to ?? "—"}</TableCell>
                       </TableRow>
