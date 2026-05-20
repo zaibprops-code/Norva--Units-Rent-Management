@@ -7,8 +7,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { calculateRentUrgency, getUrgencyLevel } from "@/lib/utils/urgency";
+import { calculateRentUrgency } from "@/lib/utils/urgency";
 import { RENT_ESCALATION } from "@/constants";
+import type { Database } from "@/types/database";
+
+type AlertUpdatePayload = Database["public"]["Tables"]["alerts"]["Update"];
+type AlertInsertPayload = Database["public"]["Tables"]["alerts"]["Insert"];
+type PaymentInsertPayload = Database["public"]["Tables"]["payments"]["Insert"];
+type ActivityLogInsertPayload = Database["public"]["Tables"]["activity_log"]["Insert"];
 
 export const maxDuration = 60;
 
@@ -26,7 +32,6 @@ export async function POST(request: NextRequest) {
   const now = new Date();
   const today = now.toISOString().split("T")[0];
 
-  // Fetch all active leases with their current month's payment status
   const { data: leases, error } = await supabase
     .from("leases")
     .select(`
@@ -47,13 +52,11 @@ export async function POST(request: NextRequest) {
   let alertsEscalated = 0;
 
   for (const lease of leases ?? []) {
-    // Calculate due date for this month
     const dueDate = new Date(now.getFullYear(), now.getMonth(), lease.rent_due_day);
-    if (dueDate > now) continue; // Not due yet this month
+    if (dueDate > now) continue;
 
     const dueDateStr = dueDate.toISOString().split("T")[0];
 
-    // Check if payment exists for this month
     const { data: payment } = await supabase
       .from("payments")
       .select("id, status, paid_date")
@@ -61,22 +64,18 @@ export async function POST(request: NextRequest) {
       .eq("due_date", dueDateStr)
       .single();
 
-    // Skip if paid
     if (payment?.status === "paid") continue;
 
-    // Calculate days overdue (after grace period)
     const msPerDay = 1000 * 60 * 60 * 24;
     const daysPastDue = Math.floor((now.getTime() - dueDate.getTime()) / msPerDay);
     const daysOverdue = Math.max(0, daysPastDue - lease.grace_period_days);
 
     if (daysOverdue === 0 && daysPastDue <= lease.grace_period_days) continue;
 
-    // Get tenant details
     const tenant = Array.isArray(lease.tenants) ? lease.tenants[0] : lease.tenants;
     const unit = Array.isArray(lease.units) ? lease.units[0] : lease.units;
     if (!tenant || !unit) continue;
 
-    // Count previous missed payments for this tenant
     const { count: missedCount } = await supabase
       .from("payments")
       .select("*", { count: "exact", head: true })
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
       .in("status", ["failed", "pending"])
       .lt("due_date", dueDateStr);
 
-    const trsScore = tenant.trs_score ?? 75;
+    const trsScore = (tenant as { trs_score?: number }).trs_score ?? 75;
     const previousMisses = missedCount ?? 0;
 
     const urgencyScore = calculateRentUrgency({
@@ -94,13 +93,17 @@ export async function POST(request: NextRequest) {
       gracePeriodDays: lease.grace_period_days,
     });
 
-    // Determine escalation level
     let escalationLevel = 0;
     if (daysOverdue >= RENT_ESCALATION.LEVEL_3_DAYS) escalationLevel = 3;
     else if (daysOverdue >= RENT_ESCALATION.LEVEL_2_DAYS) escalationLevel = 2;
     else if (daysOverdue >= RENT_ESCALATION.LEVEL_1_DAYS) escalationLevel = 1;
 
-    const title = `⚠️ Overdue rent — ${tenant.first_name} ${tenant.last_name} · ${unit.unit_number}`;
+    const unitNumber = (unit as { unit_number?: string }).unit_number ?? "";
+    const propertyId = (unit as { property_id?: string }).property_id ?? null;
+    const tenantFirst = (tenant as { first_name?: string }).first_name ?? "";
+    const tenantLast = (tenant as { last_name?: string }).last_name ?? "";
+
+    const title = `⚠️ Overdue rent — ${tenantFirst} ${tenantLast} · ${unitNumber}`;
     const body = `Rent of $${lease.rent_amount} is ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue. ` +
       `Tenant TRS: ${trsScore}. Previous misses: ${previousMisses}. ` +
       (escalationLevel >= 2 ? "Formal notice recommended." : "Reminder sequence active.");
@@ -111,7 +114,6 @@ export async function POST(request: NextRequest) {
       ? "Review and send formal late notice to tenant."
       : "Automated reminder sequence is running. Monitor for response.";
 
-    // Check for existing active alert
     const { data: existingAlert } = await supabase
       .from("alerts")
       .select("id, escalation_level")
@@ -121,42 +123,43 @@ export async function POST(request: NextRequest) {
       .eq("status", "active")
       .single();
 
-    if (existingAlert) {
-      // Only update if escalation level has increased
-      if (escalationLevel > existingAlert.escalation_level) {
+    // existingAlert.id and escalation_level typed via explicit cast
+    const existing = existingAlert as { id: string; escalation_level: number } | null;
+
+    if (existing) {
+      if (escalationLevel > existing.escalation_level) {
+        const updatePayload: AlertUpdatePayload = {
+          urgency: urgencyScore,
+          body,
+          recommended_action: recommendedAction,
+          escalation_level: escalationLevel,
+          metadata: { days_overdue: daysOverdue, amount: lease.rent_amount, escalation_level: escalationLevel },
+        };
         await supabase
           .from("alerts")
-          .update({
-            urgency: urgencyScore,
-            body,
-            recommended_action: recommendedAction,
-            escalation_level: escalationLevel,
-            metadata: { days_overdue: daysOverdue, amount: lease.rent_amount, escalation_level: escalationLevel },
-          })
-          .eq("id", existingAlert.id);
-
+          .update(updatePayload as never)
+          .eq("id", existing.id);
         alertsEscalated++;
       }
     } else {
-      // Create payment record if missing
       if (!payment) {
-        await supabase.from("payments").insert({
+        const paymentPayload: PaymentInsertPayload = {
           org_id: lease.org_id,
           lease_id: lease.id,
           tenant_id: lease.tenant_id,
           amount: lease.rent_amount,
           due_date: dueDateStr,
           status: "pending",
-        });
+        };
+        await supabase.from("payments").insert(paymentPayload as never);
       }
 
-      // Create new alert
-      await supabase.from("alerts").insert({
+      const alertPayload: AlertInsertPayload = {
         org_id: lease.org_id,
         unit_id: lease.unit_id,
         tenant_id: lease.tenant_id,
         lease_id: lease.id,
-        property_id: unit.property_id,
+        property_id: propertyId,
         type: "overdue_rent",
         status: "active",
         urgency: urgencyScore,
@@ -165,20 +168,20 @@ export async function POST(request: NextRequest) {
         recommended_action: recommendedAction,
         escalation_level: escalationLevel,
         metadata: { days_overdue: daysOverdue, amount: lease.rent_amount, escalation_level: escalationLevel },
-      });
-
+      };
+      await supabase.from("alerts").insert(alertPayload as never);
       alertsCreated++;
     }
 
-    // Log activity
-    await supabase.from("activity_log").insert({
+    const logPayload: ActivityLogInsertPayload = {
       org_id: lease.org_id,
       entity_type: "alert",
       entity_id: lease.id,
-      action: existingAlert ? "escalated" : "created",
+      action: existing ? "escalated" : "created",
       actor: "norva",
       metadata: { days_overdue: daysOverdue, urgency: urgencyScore },
-    });
+    };
+    await supabase.from("activity_log").insert(logPayload as never);
 
     processed++;
   }
