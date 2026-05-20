@@ -72,14 +72,15 @@ export async function POST(request: NextRequest) {
       .eq("status", "active")
       .single();
 
-    if (existing) {
+    const existingTyped = existing as { id: string } | null;
+    if (existingTyped) {
       await supabase
         .from("alerts")
-        .update({ urgency, body, recommended_action: recommendedAction, metadata: { days_until: daysUntil, lease_end: lease.lease_end } })
-        .eq("id", existing.id);
+        .update(({ urgency, body, recommended_action: recommendedAction, metadata: { days_until: daysUntil, lease_end: lease.lease_end } }) as never)
+        .eq("id", existingTyped.id);
       updated++;
     } else {
-      await supabase.from("alerts").insert({
+      await supabase.from("alerts").insert(({
         org_id: lease.org_id,
         unit_id: lease.unit_id,
         tenant_id: lease.tenant_id,
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
         recommended_action: recommendedAction,
         escalation_level: 0,
         metadata: { days_until: daysUntil, lease_end: lease.lease_end },
-      });
+      }) as never);
       created++;
     }
   }
